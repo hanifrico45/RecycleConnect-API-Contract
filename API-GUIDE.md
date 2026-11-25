@@ -78,7 +78,7 @@ These routes are available in GitHub `Production` as of commit `dd0be3e`. They a
 4. Weighing credits the household wallet before user confirmation. The household then sends `THUMBS_UP` or `THUMBS_DOWN`; a thumbs-down creates a dispute for admin review.
 5. Admins review KYC, change rates, inspect daily totals/disputes, and resolve disputes.
 
-These are backend workflows. The GitHub frontend currently does not call these APIs, and the reviewed repositories contain no collector Android client or admin portal.
+Frontend `main` commit `b203df9` calls the documented APIs through a shared browser client. The household pages and collector/admin web workspaces are connected to their corresponding routes. This does not provide the PRD's native Android collector app.
 
 ## Behavior and scope caveats
 
