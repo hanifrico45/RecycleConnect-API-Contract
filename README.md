@@ -11,7 +11,7 @@ The API definition is [`openapi.yaml`](openapi.yaml) (OpenAPI 3.1). Import it in
 
 ## Current project responsibilities
 
-- Frontend repository: static HTML, CSS, and browser JavaScript (Tailwind CSS CLI). It currently uses local storage for the reviewed household screens and does not call the API.
+- Frontend repository: static HTML, CSS, and browser JavaScript (Tailwind CSS CLI). Frontend `main` commit `b203df9` contains a shared API client and wired household, collector, and admin screens.
 - Backend repository: Node.js, Express, PostgreSQL through `pg`, Google ID-token verification, and JWT bearer tokens.
 - This repository: API agreement and MVP traceability only.
 
@@ -19,7 +19,7 @@ The repositories do not currently share generated code or runtime dependencies. 
 
 ## Contract status
 
-The OpenAPI file describes the backend `Production` branch, including the email/password and profile-update routes pushed in commit `dd0be3e`. It does not claim that the frontend consumes these routes.
+The OpenAPI file describes the backend `Production` branch, including the email/password and profile-update routes pushed in commit `dd0be3e`. The frontend `main` branch now consumes the documented routes through its shared client (commit `b203df9`). The contract remains documentation; it does not contain either application's code.
 
 Supabase hosts PostgreSQL for this project. The password-auth migration was applied manually to the project, but the local backend still needs its private `DATABASE_URL` configured. The backend repository has no checked-in database schema/setup script even though `package.json` declares `db:setup`. Database response row shapes are therefore not fully guaranteed by the source repository. See the unresolved questions in the guide before treating the contract as a production integration agreement.
 
