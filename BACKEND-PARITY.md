@@ -11,7 +11,13 @@ The API contract describes the linked GitHub backend branch `Production`. The em
 | `PATCH /v1/users/profile` | Update profile fields without rebuilding recurring pickups | Present on `Production` (commit `dd0be3e`) |
 | `migrations/20261125_password_auth.sql` | Adds password hash storage and case-insensitive email index | Present on `Production`; user reports manual application to Supabase |
 
-Email/password is a separately requested extension: the Master PRD and MVP brief specify Google sign-in. Google sign-in remains available. The frontend still needs to integrate and review the routes.
+Email/password is a separately requested extension: the Master PRD and MVP brief specify Google sign-in. Google sign-in remains available, and frontend `main` now calls the email/password routes.
+
+## Frontend integration on `main`
+
+Frontend commit `b203df9` connects the static web screens to the backend through `src/js/api.js` and `src/js/integration.js`. Household authentication, onboarding, dashboard, pickup actions, profile, and wallet history call the API. Collector and admin web workspaces call their matching routes. This is web integration; it does not provide the PRD's native Android collector app.
+
+The service is not ready for a live end-to-end run until the backend has an authorized `DATABASE_URL`, the required database schema and rate rows are confirmed, and the frontend is configured with the deployed API URL. Google sign-in also needs its OAuth client ID. OTP and media upload limitations remain documented in `API-GUIDE.md`.
 
 ## Repository layout
 
