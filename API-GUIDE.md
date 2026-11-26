@@ -14,7 +14,7 @@ Supabase hosts PostgreSQL for this project. The local backend uses the project's
 
 ## Authentication and permissions
 
-`POST /v1/auth/google` is public. The client sends a Google `id_token`; on a new account it also sends a role. The backend verifies the token using `GOOGLE_CLIENT_ID`, creates or finds a user, then returns a JWT valid for seven days. The token payload contains the user ID and role. Send it on protected routes as `Authorization: Bearer <JWT>`. The local frontend and backend environment use the same Google Client ID. A deployed backend needs that ID in its private environment, and Google Cloud needs the deployed frontend origin under Authorized JavaScript origins. This flow does not use the Google client secret.
+`POST /v1/auth/google` is public. The client sends a Google `id_token`; on a new account it also sends a role. The backend verifies the token against `GOOGLE_CLIENT_ID`, creates or finds a user, then returns a JWT valid for seven days. The token's audience must exactly match the client ID used by the frontend and configured in the deployed backend. A mismatch returns `401 { "error": "Invalid Google token" }`; the backend writes a sanitized verification reason to its logs without logging the ID token. Send the returned JWT on protected routes as `Authorization: Bearer <JWT>`. Set the same web client ID in the frontend and backend environment. Google Cloud must list the deployed frontend origin under Authorized JavaScript origins. This ID-token flow does not use a Google client secret.
 
 Roles are `HOUSEHOLD`, `ESTATE`, `COLLECTOR`, and `ADMIN`. Household and estate users share onboarding and pickup operations. Collector routes require `COLLECTOR`; map, status, and weigh routes additionally require approved collector KYC. Admin routes require `ADMIN`. The Google signup route permits new `HOUSEHOLD`, `ESTATE`, and `COLLECTOR` accounts; it does not create a new admin account.
 
@@ -30,6 +30,10 @@ Examples:
 
 ```json
 { "error": "Missing token. Send Authorization: Bearer <JWT>" }
+```
+
+```json
+{ "error": "Invalid Google token" }
 ```
 
 ```json
@@ -109,7 +113,7 @@ The frontend uses a shared browser client for household, collector, and admin ro
 - The local Supabase schema and material rates were checked; verify the deployed database has the same schema and seed rates before release.
 - Confirm the production/staging URLs and release branch. The PRD names Render/Railway and a production URL, but repository configuration does not establish a deployed service.
 - Confirm email/password signup remains in scope. The MVP source specifies Google sign-in; email/password was added separately by request (see [`BACKEND-PARITY.md`](BACKEND-PARITY.md)).
-- Complete a live Google sign-in after restarting the local backend with the updated `.env` and adding the local browser origin to Google Cloud Authorized JavaScript origins.
+- A recent Render Google sign-in returned `401` because the token audience did not match the backend's configured `GOOGLE_CLIENT_ID`. Before release, verify that the actual deployed frontend uses the same web client ID as Render and that its exact origin is authorized in Google Cloud. Keep audience verification enabled.
 - Resolve the map privacy mismatch, live-camera enforcement, scale-photo storage/upload ownership, notification collector-photo requirement, and payout rounding rule.
 - Confirm response fields for raw `user` objects against the deployed database schema; the base schema is not checked into the backend repository.
 
