@@ -8,17 +8,19 @@ The root health endpoints are outside the versioned API: `GET /` returns `{ "app
 
 ## Supabase configuration status
 
-Supabase hosts PostgreSQL for this project. The password-auth migration was applied manually, but the local backend still needs a private `DATABASE_URL`. The backend uses the `pg` driver and reads `DATABASE_URL`; keep the connection string in the backend environment. Keep it in the backend environment, never in frontend code or a committed `.env` file. The backend copy contains a blank `.env.example` and ignores `.env`.
+Supabase hosts PostgreSQL for this project. The local backend uses the project's Session pooler. A read-only `SELECT 1` query succeeded, and the expected seven public tables and route-required columns were present; four material-rate rows were available. A deployed backend still needs its own private `DATABASE_URL`. The backend uses the `pg` driver and reads `DATABASE_URL`; keep the connection string in the backend environment, never in frontend code or a committed `.env` file. The backend ignores `.env`.
 
 `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are reserved placeholders only. The current auth routes do not use Supabase Auth: Google sign-in and email/password routes issue the backend's own JWT. If the team chooses Supabase Auth, the frontend sign-in flow and backend token verification must be updated together. An API URL or publishable key alone does not connect the existing `pg` database client.
 
 ## Authentication and permissions
 
-`POST /v1/auth/google` is public. The client sends a Google `id_token`; on a new account it also sends a role. The backend verifies the token using `GOOGLE_CLIENT_ID`, creates or finds a user, then returns a JWT valid for seven days. The token payload contains the user ID and role. Send it on protected routes as `Authorization: Bearer <JWT>`.
+`POST /v1/auth/google` is public. The client sends a Google `id_token`; on a new account it also sends a role. The backend verifies the token using `GOOGLE_CLIENT_ID`, creates or finds a user, then returns a JWT valid for seven days. The token payload contains the user ID and role. Send it on protected routes as `Authorization: Bearer <JWT>`. The local frontend and backend environment use the same Google Client ID. A deployed backend needs that ID in its private environment, and Google Cloud needs the deployed frontend origin under Authorized JavaScript origins. This flow does not use the Google client secret.
 
 Roles are `HOUSEHOLD`, `ESTATE`, `COLLECTOR`, and `ADMIN`. Household and estate users share onboarding and pickup operations. Collector routes require `COLLECTOR`; map, status, and weigh routes additionally require approved collector KYC. Admin routes require `ADMIN`. The Google signup route permits new `HOUSEHOLD`, `ESTATE`, and `COLLECTOR` accounts; it does not create a new admin account.
 
 `POST /v1/auth/otp/verify` requires a collector JWT. The OTP is hard-coded to `123456` in the current backend and is a development/demo behavior, not a real verification service.
+
+The email/password signup route stores phone numbers without spaces, parentheses, periods, or dashes. It accepts 7–15 digits with an optional leading `+`, fitting the current `users.phone` column limit.
 
 ## Error responses
 
@@ -36,7 +38,7 @@ Examples:
 
 ## Implemented route inventory
 
-All versioned paths below are under `/v1`. Exact request and response schemas are in [`openapi.yaml`](openapi.yaml).
+All versioned paths below are under `/v1`. The frontend screens use the existing paths listed here; the latest collection and collector screen updates add no API paths.
 
 | Method and path | Permission | Purpose |
 | --- | --- | --- |
@@ -60,9 +62,21 @@ All versioned paths below are under `/v1`. Exact request and response schemas ar
 | `GET /admin/disputes` | Admin | List disputes |
 | `PATCH /admin/disputes/{id}/resolve` | Admin | Resolve a dispute |
 
-### Prepared backend additions
+### Fields used by the latest frontend update
 
-These routes are available in GitHub `Production` as of commit `dd0be3e`. They are included in the OpenAPI file and ready for frontend integration.
+- `GET /v1/admin/overview` returns daily totals (`today_pickups`, `today_kg`, `today_payouts_formatted`) and dispute data.
+- `PATCH /v1/admin/rates` takes `{ "rates": [{ "material": "PET", "rate_per_kg": 500 }] }`; each rate must be a whole number of zero or more. It returns `{ "updated": true, "rates": [...] }`.
+- `GET /v1/admin/collectors/pending` returns `pending_collectors` with the collector's profile and KYC review fields: `id`, `full_name`, `email`, `phone`, `address`, `nin_number`, `id_doc_type`, `id_doc_url`, `live_selfie_url`, `guarantor_name`, `guarantor_phone`, and `guarantor_relationship`.
+- `PATCH /v1/admin/collectors/{id}/verify` takes `{ "action": "APPROVE" }` or `{ "action": "REJECT" }`. The ID is the collector's user ID. Approval returns `kyc_status` and `badge_id`.
+- `GET /v1/admin/disputes` returns `disputes` with `id`, `pickup_id`, `reason`, `admin_resolution`, `adjusted_payout`, `created_at`, `weights_json`, `total_kg`, `total_payout`, `scale_photo_url`, `householder_present`, and `collector_id`.
+- `PATCH /v1/admin/disputes/{id}/resolve` takes an `action` of `APPROVE`, `ADJUST`, or `SUSPEND`; `ADJUST` also requires a whole-number `adjusted_payout` of zero or more. It returns `dispute_id` and `admin_resolution`.
+- `GET /v1/rates` returns `{ "rates": [...] }`. `GET /v1/pickups/dashboard` includes the next pickup's `collector_name` and `collector_badge_id` when a collector is assigned, plus the live `rates` list.
+
+Admin paths require an `ADMIN` JWT. Household dashboard paths require a `HOUSEHOLD` or `ESTATE` JWT.
+
+### Email/password and profile routes
+
+These routes are available in GitHub `Production` as of commit `dd0be3e` and are called by the frontend shared API client.
 
 | Method and path | Permission | Purpose |
 | --- | --- | --- |
@@ -78,7 +92,7 @@ These routes are available in GitHub `Production` as of commit `dd0be3e`. They a
 4. Weighing credits the household wallet before user confirmation. The household then sends `THUMBS_UP` or `THUMBS_DOWN`; a thumbs-down creates a dispute for admin review.
 5. Admins review KYC, change rates, inspect daily totals/disputes, and resolve disputes.
 
-Frontend `main` commit `b203df9` calls the documented APIs through a shared browser client. The household pages and collector/admin web workspaces are connected to their corresponding routes. This does not provide the PRD's native Android collector app.
+The frontend uses a shared browser client for household, collector, and admin routes. The collection confirmation, success, collector dispatch, and weighing screens load data from the dashboard, rates, map-pin, status, and weigh routes listed above. These screens use routes already present on backend `Production`; they add no API paths. This does not provide the PRD's native Android collector app.
 
 ## Behavior and scope caveats
 
@@ -92,10 +106,10 @@ Frontend `main` commit `b203df9` calls the documented APIs through a shared brow
 
 ## Team decisions still needed
 
-- Confirm the backend database DDL and initial material rates; align it with the PRD schema and response fields.
+- The local Supabase schema and material rates were checked; verify the deployed database has the same schema and seed rates before release.
 - Confirm the production/staging URLs and release branch. The PRD names Render/Railway and a production URL, but repository configuration does not establish a deployed service.
 - Confirm email/password signup remains in scope. The MVP source specifies Google sign-in; email/password was added separately by request (see [`BACKEND-PARITY.md`](BACKEND-PARITY.md)).
+- Complete a live Google sign-in after restarting the local backend with the updated `.env` and adding the local browser origin to Google Cloud Authorized JavaScript origins.
 - Resolve the map privacy mismatch, live-camera enforcement, scale-photo storage/upload ownership, notification collector-photo requirement, and payout rounding rule.
-- Confirm whether frontend/backend teams will use the exact OpenAPI response for the raw `user` database row; the database schema is not checked into the backend repository.
-
+- Confirm response fields for raw `user` objects against the deployed database schema; the base schema is not checked into the backend repository.
 

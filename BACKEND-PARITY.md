@@ -1,6 +1,6 @@
 # Backend Repository Parity
 
-The API contract describes the linked GitHub backend branch `Production`. The email/password signup and login routes, profile route, environment template, and password-auth migration were pushed to that branch in commit `dd0be3e`.
+The API contract describes the linked GitHub backend branch `Production`. The email/password signup and login routes, profile route, and password-auth migration were pushed to that branch in commit `dd0be3e`.
 
 ## Backend additions on `Production`
 
@@ -15,9 +15,9 @@ Email/password is a separately requested extension: the Master PRD and MVP brief
 
 ## Frontend integration on `main`
 
-Frontend commit `b203df9` connects the static web screens to the backend through `src/js/api.js` and `src/js/integration.js`. Household authentication, onboarding, dashboard, pickup actions, profile, and wallet history call the API. Collector and admin web workspaces call their matching routes. This is web integration; it does not provide the PRD's native Android collector app.
+The frontend connects the static web screens to the backend through `src/js/api.js`, `src/js/integration.js`, and `src/js/admin-portal.js`. The admin sign-in, collector KYC review with ID/selfie evidence, dispute evidence and resolution controls, household dashboard, and latest collection/collector screens use existing backend routes. No new endpoint is required. This is web integration; it does not provide the PRD's native Android collector app.
 
-The service is not ready for a live end-to-end run until the backend has an authorized `DATABASE_URL`, the required database schema and rate rows are confirmed, and the frontend is configured with the deployed API URL. Google sign-in also needs its OAuth client ID. OTP and media upload limitations remain documented in `API-GUIDE.md`.
+The local backend's Supabase Session pooler passed a read-only `SELECT 1` check. The seven tables and columns used by the routes were present, and four material-rate rows were available. A deployed backend needs its own private `DATABASE_URL` and matching `GOOGLE_CLIENT_ID`; the deployed frontend needs its API base URL and an authorized Google JavaScript origin. OTP and media upload limitations remain documented in `API-GUIDE.md`.
 
 ## Repository layout
 
@@ -25,7 +25,6 @@ The service is not ready for a live end-to-end run until the backend has an auth
 - Frontend: [ateelabo/recycleconnect](https://github.com/ateelabo/recycleconnect).
 - API contract: this standalone repository; it contains specifications and integration documentation, not application code.
 
-The local backend checkout used for the update is `backend-git/`; the successful push advanced `Production` to commit `dd0be3e`. The local `.env` is ignored by Git and still needs a private `DATABASE_URL` before database-backed routes can run.
+The local backend checkout used for the update is `backend-git/`; the successful push advanced `Production` to commit `dd0be3e`. The local `.env` is ignored by Git and holds the private Session pooler URL. Never commit or publish it.
 
 Update this contract alongside future backend changes, and recheck each route's implementation status against the target branch.
-
