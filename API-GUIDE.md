@@ -8,9 +8,9 @@ The root health endpoints are outside the versioned API: `GET /` returns `{ "app
 
 ## Supabase configuration status
 
-Supabase hosts PostgreSQL for this project. The local backend uses the project's Session pooler. A read-only `SELECT 1` query succeeded, and the expected seven public tables and route-required columns were present; four material-rate rows were available. A deployed backend still needs its own private `DATABASE_URL`. The backend uses the `pg` driver and reads `DATABASE_URL`; keep the connection string in the backend environment, never in frontend code or a committed `.env` file. The backend ignores `.env`.
+Supabase hosts PostgreSQL and private profile-avatar objects for this project. The backend uses the `pg` driver and reads `DATABASE_URL`; keep the connection string in the backend environment, never in frontend code or a committed `.env` file. The backend ignores `.env`. Avatar storage uses a private `profile-avatars` bucket and the backend-only `SUPABASE_URL` and `SUPABASE_SECRET_KEY` variables. The older `SUPABASE_SERVICE_ROLE_KEY` JWT is supported for compatibility. Never put either key in frontend code or Git. Apply `migrations/20261126_profile_avatar.sql` after the existing `users` table exists; it adds the `avatar_path` column and creates/configures the private bucket for JPEG, PNG, and WebP up to 2 MB.
 
-`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are reserved placeholders only. The current auth routes do not use Supabase Auth: Google sign-in and email/password routes issue the backend's own JWT. If the team chooses Supabase Auth, the frontend sign-in flow and backend token verification must be updated together. An API URL or publishable key alone does not connect the existing `pg` database client.
+The current auth routes do not use Supabase Auth: Google sign-in and email/password routes issue the backend's own JWT. Supabase Storage is used only by the profile-avatar routes. If the team chooses Supabase Auth, the frontend sign-in flow and backend token verification must be updated together. An API URL or publishable key alone does not connect the existing `pg` database client.
 
 ## Authentication and permissions
 
@@ -24,7 +24,7 @@ The email/password signup route stores phone numbers without spaces, parentheses
 
 ## Error responses
 
-Errors are JSON objects with a single `error` string. The app maps malformed JSON to `400`, explicit validation errors to their route's status, missing/invalid/expired JWTs to `401`, role or KYC failures to `403`, missing records or routes to `404`, invalid state transitions to `409`, and unhandled server errors to `500` with `Something went wrong on the server`. Do not rely on database-specific error text.
+Errors are JSON objects with a single `error` string. The app maps malformed JSON to `400`, invalid image types to `415`, images over 2 MB to `413`, missing/invalid/expired JWTs to `401`, role or KYC failures to `403`, missing records or routes to `404`, invalid state transitions to `409`, unavailable profile storage to `503`, and unhandled server errors to `500` with `Something went wrong on the server`. Do not rely on database-specific error text.
 
 Examples:
 
@@ -48,6 +48,8 @@ All versioned paths below are under `/v1`. The frontend screens use the existing
 | --- | --- | --- |
 | `POST /auth/google` | Public | Google sign-in and account creation |
 | `POST /auth/otp/verify` | Collector JWT | Verify demo OTP and save phone |
+| `GET /users/profile` | Any authenticated role | Read the caller's profile and a one-hour signed avatar URL |
+| `PUT /users/profile/avatar` | Any authenticated role | Store the caller's JPEG, PNG, or WebP avatar in the private Supabase Storage bucket (2 MB max) |
 | `PATCH /users/onboarding` | Household, Estate | Save profile and create the first recurring pickup |
 | `PATCH /users/pause-toggle` | Household, Estate | Pause/resume recurring pickups |
 | `GET /rates` | Any authenticated role | Read material rates |
@@ -87,6 +89,10 @@ These routes are available in GitHub `Production` as of commit `dd0be3e` and are
 | `POST /auth/signup` | Public | Email/password registration |
 | `POST /auth/login` | Public | Email or phone/password login |
 | `PATCH /users/profile` | Household, Estate | Update profile without rebuilding recurring pickups |
+| `GET /users/profile` | Any authenticated role | Read the caller's profile and signed avatar URL |
+| `PUT /users/profile/avatar` | Any authenticated role | Upload or replace the caller's private profile avatar |
+
+`PUT /v1/users/profile/avatar` sends the image bytes directly as the request body, with `Content-Type: image/jpeg`, `image/png`, or `image/webp`; it does not use multipart form data or a client-supplied object path. Success returns `{ "profile_image_url": "<one-hour signed URL>" }`. `GET /v1/users/profile` returns the caller's safe profile fields and the current signed URL (or `null`). Only the authenticated user's own avatar path is read or replaced.
 
 ## Expected user flows
 
@@ -101,7 +107,7 @@ The frontend uses a shared browser client for household, collector, and admin ro
 ## Behavior and scope caveats
 
 - `GET /collector/map-pins` currently includes pickup materials, address, date, and status in addition to coordinates and ID. The MVP brief says map pins should not reveal materials or weights. Backend behavior must be corrected or the brief owner must explicitly revise that rule before clients rely on pin contents.
-- The weigh endpoint requires a `scale_photo_url` when the householder is absent, but it cannot prove that the image was captured live or by a camera. No upload endpoint or signed-upload contract exists in the repository. The PRD's camera-only and Cloudinary ≤300 KB rules are not enforced by this API.
+- Profile avatars use private Supabase Storage objects and expiring signed URLs. The one-off pickup and conditional weigh-photo fields still accept URL references only; the API does not upload or verify those photos. The PRD's camera-only and Cloudinary ≤300 KB rules are not enforced by those flows.
 - Starting a route stores a notification message containing collector name and badge; a collector photo is not part of that notification response. Dashboard data includes the badge, but not a photo URL.
 - Weighing returns integer Naira payout and wallet balance is represented as Naira. The PRD equates one point to one Naira, but the backend has no explicit points field, points ledger, or redemption endpoint. Payment-provider cash-out is explicitly post-MVP.
 - Payout code rounds each material's `weight * rate` before summing. The PRD describes the sum of each weight times its rate; the rounding rule should be agreed and documented before financial use.
